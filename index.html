@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Website123</title>
+<style>
+  :root{
+    --bg:#071018; --panel:#08141a; --accent:#9ff3e9; --muted:#88f0e6;
+    --btn-bg:#9ff3e9; --btn-text:#032;
+    --shadow: 0 8px 30px rgba(0,0,0,0.6);
+    --radius:14px;
+  }
+  html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Courier New",monospace;background:linear-gradient(180deg,#04101a,#07121a);color:var(--accent);}
+  .wrap{max-width:900px;margin:18px auto;padding:14px;box-sizing:border-box;}
+  .card{background:linear-gradient(180deg,var(--panel),#06121a);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);border:1px solid rgba(10,120,110,0.08);}
+  h1{font-size:20px;margin:6px 0 12px;text-align:center;color:var(--accent);}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:center;}
+  .left,.right{flex:1;min-width:240px}
+  .controls{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+  input[type=text], input[type=number], select, input[type=file]{
+    width:100%;padding:12px;border-radius:10px;border:1px solid rgba(70,162,158,0.15);background:#031a1a;color:var(--accent);font-weight:600;box-sizing:border-box;
+  }
+  button{padding:12px;border-radius:12px;border:none;background:var(--btn-bg);color:var(--btn-text);font-weight:800;font-size:15px;cursor:pointer}
+  button:active{transform:translateY(1px)}
+  .small{font-size:13px;color:var(--muted);text-align:center;margin-top:6px}
+  .preview{background:rgba(0,0,0,0.15);border-radius:10px;padding:8px;display:flex;align-items:center;justify-content:center;min-height:220px;position:relative;overflow:hidden}
+  canvas{max-width:100%;border-radius:8px;display:block}
+  .output{margin-top:12px;min-height:70px;white-space:pre-line;text-align:center;font-size:16px}
+  .hint{font-size:13px;color:var(--muted);text-align:center;margin-top:6px}
+  .controls-horizontal{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+  .pill{display:inline-block;background:rgba(4,42,42,0.6);padding:8px 12px;border-radius:999px;color:var(--accent);border:1px solid rgba(11,102,90,0.12)}
+  .download-link{display:inline-block;margin-top:8px;color:var(--accent);font-weight:700}
+  /* confetti/particles */
+  .particle{position:absolute;border-radius:50%;opacity:0.95;pointer-events:none;animation:fall 2200ms linear forwards;}
+  @keyframes fall{0%{transform:translateY(-20px) rotate(0) scale(.8)}100%{transform:translateY(420px) rotate(720deg) scale(1);opacity:0}}
+  /* responsive tweaks */
+  @media (max-width:560px){
+    .row{flex-direction:column}
+    h1{font-size:18px}
+    button{font-size:15px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1> Magic--✨ </h1>
+
+    <div class="row">
+      <div class="left">
+        <input id="nameInput" type="text" placeholder="Her name (optional)" aria-label="Her name"/>
+        <div class="small">Upload your  photo here. Photo stays on the phone — never sent anywhere.</div>
+        <div style="margin-top:10px;">
+          <input id="fileInput" type="file" accept="image/*" />
+        </div>
+
+        <div class="controls">
+          <button id="msgBtn">Give me a Sweet Message 💌</button>
+          <button id="hugBtn">Send a Virtual Hug </button>
+          <button id="funnyBtn"> Prediction 🔮</button>
+          <button id="photoBtn">Make Photo Cute </button>
+          <div style="display:flex;gap:8px;justify-content:center">
+            <button id="speakBtn">🔊 Speak</button>
+            <button id="stopSpeakBtn">⏹ Stop</button>
+          </div>
+        </div>
+
+        <div class="hint">Tip: press "Give a Sweet Message" then "Speak" to hear it aloud.</div>
+      </div>
+
+      <div class="right">
+        <div class="preview" id="previewBox">
+          <canvas id="canvas" width="420" height="280" style="display:none"></canvas>
+          <div id="placeholder" style="color:#9ff3e9;text-align:center;">
+            <div style="font-size:48px">🙂</div>
+            <div class="small">Photo preview (optional)</div>
+          </div>
+        </div>
+
+        <div class="output" id="output" aria-live="polite"></div>
+        <div class="hint" id="loading"></div>
+        <div id="downloadArea" class="center"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const fileInput = document.getElementById('fileInput');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const placeholder = document.getElementById('placeholder');
+const previewBox = document.getElementById('previewBox');
+const output = document.getElementById('output');
+const loading = document.getElementById('loading');
+const downloadArea = document.getElementById('downloadArea');
+const nameInput = document.getElementById('nameInput');
+
+let uploadedImg = null;
+
+// Message pools
+const compliments = [
+  "Angel your smile lights up rooms — don't forget that",
+  "You deserve someone like Nagendra who values you every day (hehe)",
+  "You're kind, brave and absolutely lovable ✨."
+  ];
+const funnyLines = [
+  "Life is Game",
+  "Your love life(Nagendra) is on airplane mode — soon it'll turn to flight mode ✈️",
+  "Future vehicle: Mood-lifter scooter"
+];
+const hugs = [
+  "Sending a big virtual hug ",
+  "Here's a warm hug-wrap — press repeat if needed 🤍",
+  "Hug delivered! Side effects: slightly happier day."
+];
+
+function randomFrom(a){ return a[Math.floor(Math.random()*a.length)]; }
+
+/* ---------- file load & preview ---------- */
+fileInput.addEventListener('change', (e) => {
+  const f = e.target.files && e.target.files[0];
+  if(!f) return;
+  const url = URL.createObjectURL(f);
+  const img = new Image();
+  img.onload = () => {
+    uploadedImg = img;
+    drawPreview(img);
+    URL.revokeObjectURL(url);
+    output.textContent = "Photo loaded — try 'Make Photo Cute'.";
+  };
+  img.src = url;
+});
+
+function drawPreview(img){
+  const maxW = Math.min(window.innerWidth*0.9, 800);
+  const maxH = 480;
+  let w = img.width, h = img.height;
+  const ratio = Math.min(maxW/w, maxH/h, 1);
+  w = Math.round(w * ratio); h = Math.round(h * ratio);
+  canvas.width = w; canvas.height = h;
+  placeholder.style.display = 'none';
+  canvas.style.display = 'block';
+  ctx.clearRect(0,0,w,h);
+  ctx.drawImage(img, 0, 0, w, h);
+}
+
+/* ---------- typewriter / loading ---------- */
+function typeWriter(text, target, speed=28, cb){
+  target.textContent = "";
+  let i=0;
+  function step(){
+    if(i<text.length){ target.textContent += text.charAt(i); i++; setTimeout(step,speed) }
+    else if(cb) setTimeout(cb, 360);
+  }
+  step();
+}
+
+function runLoading(steps, cb){
+  loading.textContent = "";
+  let i=0;
+  function next(){
+    if(i<steps.length){
+      typeWriter(steps[i], loading, 28, ()=>{ i++; setTimeout(next,260) });
+    } else { loading.textContent = ""; cb(); }
+  }
+  next();
+}
+
+/* ---------- confetti / particles ---------- */
+function createConfetti(){
+  for(let i=0;i<16;i++){
+    const d = document.createElement('div');
+    d.className = 'particle';
+    d.style.left = (20 + Math.random()*60) + '%';
+    d.style.top = '-20px';
+    d.style.background = ['#ffd166','#06d6a0','#ef476f','#118ab2','#ffd6a5'][i%5];
+    d.style.width = (6 + Math.random()*10) + 'px';
+    d.style.height = d.style.width;
+    d.style.animationDelay = (Math.random()*400) + 'ms';
+    previewBox.appendChild(d);
+    setTimeout(()=> d.remove(), 2400 + Math.random()*1000);
+  }
+}
+
+/* floating heart emoji in output */
+function floatHeart(){
+  const el = document.createElement('span');
+  el.textContent = '💖';
+  el.style.marginLeft = '8px';
+  el.style.opacity = '0.95';
+  output.appendChild(el);
+  setTimeout(()=> el.remove(), 2600);
+}
+
+/* ---------- main actions ---------- */
+function doCheer(kind){
+  const name = (nameInput.value || "").trim();
+  const steps = ["Scanning mood...", "Contacting Anil Dona...", "Reading your ahh data...", "Just a sec Thapaliya Angel Mam..."];
+  runLoading(steps, ()=>{
+    if(kind==='message'){
+      const msg = randomFrom(compliments);
+      const text = name ? `${name} ${msg}` : msg; // <-- TTS-friendly
+      typeWriter(text, output);
+      createConfetti();
+    } else if(kind==='hug'){
+      const text = randomFrom(hugs);
+      typeWriter(text, output);
+      } else if(kind==='funny'){
+      const text = randomFrom(funnyLines);
+      typeWriter(text, output);
+      createConfetti();
+    } else if(kind==='photo'){
+      if(!uploadedImg){ typeWriter("No photo found — ask her to add one (optional).", output); return; }
+      makePhotoCute(name);
+    }
+  });
+}
+
+/* ---------- photo decorate & download ---------- */
+function makePhotoCute(name){
+  drawPreview(uploadedImg);
+  const W = canvas.width, H = canvas.height;
+  ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(0,0,W,H);
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.drawImage(uploadedImg, 0, 0, W, H);
+  ctx.globalCompositeOperation = 'source-over';
+  drawHearts(ctx, W, H);
+  ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(10, H-68, Math.min(360, W-20), 58);
+  ctx.fillStyle = '#fff'; ctx.font = '18px Arial';
+  const label = name? `${name} you are loved — keep smiling!` : 'Smile — you deserve the best!';
+  wrapText(ctx, label, 18, H-40, Math.min(320, W-36), 20);
+  showDownload();
+  typeWriter("Photo made cute — tap Download to save and send! ", output);
+  createConfetti();
+}
+
+function drawHearts(ctx, W, H){
+  const heart = (x,y,size,rot,color)=>{
+    ctx.save(); ctx.translate(x,y); ctx.rotate(rot); ctx.globalAlpha = 0.95; ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, -size/4);
+    ctx.bezierCurveTo(size/2, -size/2, size, size/6, 0, size);
+    ctx.bezierCurveTo(-size, size/6, -size/2, -size/2, 0, -size/4);
+    ctx.closePath(); ctx.fill(); ctx.restore();
+  };
+  heart(W*0.2, H*0.18, 26, -0.18, '#ff7ab6');
+  heart(W*0.66, H*0.28, 34, -0.08, '#ff5f7a');
+  heart(W*0.5, H*0.62, 40, 0.06, '#ff8fc6');
+}
+
+function wrapText(ctx, text, x, y, maxWidth, lineHeight){
+  const words = text.split(' '); let line=''; let testY=y;
+  for(let n=0;n<words.length;n++){
+    const testLine = line + words[n] + ' ';
+    const metrics = ctx.measureText(testLine);
+    const testWidth = metrics.width;
+    if(testWidth > maxWidth && n>0){ ctx.fillText(line, x, testY); line = words[n] + ' '; testY += lineHeight; }
+    else line = testLine;
+  }
+  ctx.fillText(line, x, testY);
+}
+
+function showDownload(){
+  downloadArea.innerHTML = '';
+  const a = document.createElement('a');
+  a.className = 'download-link';
+  a.href = canvas.toDataURL('image/png');
+  a.download = 'cheerup.png';
+  a.textContent = '⬇️ CLick here to download your photo';
+  a.style.display = 'inline-block';
+  a.style.padding='8px';
+  a.style.color= 'var(--accent)';
+  a.style.fontWeight='800';
+  downloadArea.appendChild(a);
+}
+
+function speakText(){
+  const s = output.textContent || "Sending you a hug!";
+  if(!window.speechSynthesis) return alert("TTS not supported on this browser.");
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(s);
+  utter.lang = 'en-US';
+  utter.rate = 0.95;
+  utter.pitch = 1.05;
+  window.speechSynthesis.speak(utter);
+}
+function stopSpeak(){ if(window.speechSynthesis) window.speechSynthesis.cancel(); }
+
+document.getElementById('msgBtn').addEventListener('click', ()=>doCheer('message'));
+document.getElementById('hugBtn').addEventListener('click', ()=>doCheer('hug'));
+document.getElementById('funnyBtn').addEventListener('click', ()=>doCheer('funny'));
+document.getElementById('photoBtn').addEventListener('click', ()=>doCheer('photo'));
+document.getElementById('speakBtn').addEventListener('click', speakText);
+document.getElementById('stopSpeakBtn').addEventListener('click', stopSpeak);
+nameInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') fileInput.focus(); });
+</script>
+</body>
+</html>
